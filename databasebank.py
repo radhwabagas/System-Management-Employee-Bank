@@ -1,9 +1,100 @@
 import mysql.connector
 from mysql.connector import Error
 from decimal import Decimal
+import random
+import string
 import bcrypt
+from datetime import datetime, timedelta
 from dbconfig_bank import config
 
+def _send_sms_notification(phone_number, otp_code):
+    print("\n=============================================")
+    print(f"📲  MENGIRIM SMS (SIMULASI)")
+    print(f"   Penerima      : {phone_number}")
+    print(f"   Pesan         : Kode verifikasi Anda adalah {otp_code}. Jangan berikan kepada siapa pun. Kode ini akan kedaluwarsa dalam 5 menit.")
+    print("=============================================\n")
+    return True
+
+def request_password_reset(username):
+    conn = get_db_connection()
+    if not conn: return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT phone_number FROM user WHERE username = %s", (username,))
+        result = cursor.fetchone()
+
+        if not result or not result[0]:
+            print(f"❌ Gagal: Username '{username}' tidak ditemukan atau tidak memiliki nomor telepon terdaftar.")
+            return False
+        
+        phone_number = result[0]
+        
+        otp_code = ''.join(random.choices(string.digits, k=6))
+        expires_at = datetime.now() + timedelta(minutes=5)
+        update_query = "UPDATE user SET reset_otp = %s, otp_expires_at = %s WHERE username = %s"
+        cursor.execute(update_query, (otp_code, expires_at, username))
+        conn.commit()
+        
+        if _send_sms_notification(phone_number, otp_code):
+            print(f"✅ Kode OTP telah dikirim ke nomor telepon yang terasosiasi dengan '{username}'.")
+            return True
+        else:
+            print("❌ Gagal mengirim notifikasi SMS.")
+            return False
+            
+    except Error as e:
+        print(f"❌ Terjadi error database: {e}")
+        return False
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+def verify_and_reset_password(username, otp_code, new_password):
+    """
+    Memverifikasi OTP dan mengatur ulang password jika OTP valid.
+    """
+    conn = get_db_connection()
+    if not conn: return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT reset_otp, otp_expires_at FROM user WHERE username = %s", (username,))
+        result = cursor.fetchone()
+        
+        if not result:
+            print("❌ Gagal: Username tidak ditemukan.")
+            return False
+            
+        stored_otp, expires_at = result
+    
+        if stored_otp != otp_code:
+            print("❌ Gagal: Kode OTP salah.")
+            return False
+        
+        if datetime.now() > expires_at:
+            print("❌ Gagal: Kode OTP sudah kedaluwarsa. Silakan minta lagi.")
+            return False
+            
+        password_bytes = new_password.encode('utf-8')
+        password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+        
+        update_query = "UPDATE user SET password_hash = %s, reset_otp = NULL, otp_expires_at = NULL WHERE username = %s"
+        cursor.execute(update_query, (password_hash.decode('utf-8'), username))
+        conn.commit()
+        
+        print(f"✅ Password untuk user '{username}' telah berhasil diperbarui!")
+        return True
+
+    except Error as e:
+        print(f"❌ Terjadi error database saat reset: {e}")
+        return False
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 def get_db_connection():
     try:
@@ -14,31 +105,29 @@ def get_db_connection():
         print(f"❌ Error saat menghubungkan ke MySQL: {e}")
         return None
     
-def registrasi_user(username, password):
-    "Mendaftarkan user baru dengan password yang di-hash."
+
+def registrasi_user(username, password, phone_number): 
+    """Mendaftarkan user baru dengan password yang di-hash dan nomor telepon."""
+    conn = get_db_connection()
+    if not conn: return False
+    
     try:
-        # Mengubah password string menjadi byte
         password_bytes = password.encode('utf-8')
-        # Membuat salt dan hash password
         salt = bcrypt.gensalt()
         password_hash = bcrypt.hashpw(password_bytes, salt)
         
-        query = "INSERT INTO user (username, password_hash) VALUES (%s, %s)"
-        # Menyimpan hash sebagai string di database
-        args = (username, password_hash.decode('utf-8'))
+        query = "INSERT INTO user (username, password_hash, phone_number) VALUES (%s, %s, %s)"
         
-        conn = get_db_connection()
-        if not conn: return False
+        args = (username, password_hash.decode('utf-8'), phone_number)
         
         cursor = conn.cursor()
         cursor.execute(query, args)
         conn.commit()
-        print(f"✅ User '{username}' berhasil diregistrasi.")
+        print(f"✅ User '{username}' dengan nomor telepon '{phone_number}' berhasil diregistrasi.")
         return True
     except Error as e:
-        # Menangani jika username sudah ada
-        if e.errno == 1062: # Duplicate entry
-            print(f"❌ Gagal: Username '{username}' sudah digunakan.")
+        if e.errno == 1062: 
+            print(f"❌ Gagal: Username '{username}' atau nomor telepon sudah digunakan.")
         else:
             print(f"❌ Gagal melakukan registrasi: {e}")
         return False
@@ -208,7 +297,7 @@ def lihat_saldo(rekening_id):
         cursor = conn.cursor()
         try:
             cursor.execute(query, args)
-            result = cursor.fetchone() # Ambil satu baris hasil
+            result = cursor.fetchone() 
             
             if result:
                 saldo = result[0]
@@ -250,21 +339,17 @@ def buat_transaksi(rekening_id, tipe_transaksi, jumlah, deskripsi):
 
     cursor = conn.cursor()
     try:
-        # Langkah 1: Ambil saldo berdasarkan ID rekening (primary key)
         cursor.execute("SELECT saldo FROM rekening WHERE id = %s FOR UPDATE", (rekening_id,))
         result = cursor.fetchone()
         
         if result is None:
-            # Pesan error yang benar, mencari berdasarkan ID
             print(f"❌ Rekening dengan ID {rekening_id} tidak ditemukan.")
             return
 
         saldo_sekarang = result[0]
         
-        # Konversi 'jumlah' dari float ke tipe Decimal
         jumlah_decimal = Decimal(str(jumlah))
 
-        # Langkah 2: Hitung saldo baru
         if tipe_transaksi.upper() == 'KREDIT':
             saldo_baru = saldo_sekarang + jumlah_decimal
         elif tipe_transaksi.upper() == 'DEBIT':
@@ -276,15 +361,12 @@ def buat_transaksi(rekening_id, tipe_transaksi, jumlah, deskripsi):
             print("❌ Tipe transaksi tidak valid (harus 'DEBIT' atau 'KREDIT').")
             return
 
-        # Update saldo di tabel rekening menggunakan ID
         update_rekening_query = "UPDATE rekening SET saldo = %s WHERE id = %s"
         cursor.execute(update_rekening_query, (saldo_baru, rekening_id))
 
-        # Masukkan catatan ke tabel transaksi menggunakan ID
         insert_transaksi_query = "INSERT INTO transaksi (rekening_id, tipe_transaksi, jumlah, deskripsi) VALUES (%s, %s, %s, %s)"
         cursor.execute(insert_transaksi_query, (rekening_id, tipe_transaksi.upper(), jumlah_decimal, deskripsi))
 
-        # Jika semua berhasil, commit transaksi
         conn.commit()
         print(f"✅ Transaksi '{deskripsi}' sebesar Rp {jumlah_decimal:,.2f} berhasil.")
 

@@ -136,32 +136,44 @@ def menu_aplikasi_bank():
         else:
             print("Pilihan tidak valid.")
 
+def menu_lupa_password():
+    """Menangani alur interaksi user untuk reset password."""
+    print("\n-- Reset Password --")
+    username = input("Masukkan username Anda: ")
+    
+    if db.request_password_reset(username):
+        otp_code = input("Masukkan kode OTP yang Anda terima di SMS: ")
+        new_password = input("Masukkan password baru Anda: ")
+        db.verify_and_reset_password(username, otp_code, new_password)
+
 def main():
     """Fungsi utama untuk menjalankan loop login."""
     while True:
         print("\n======= Selamat Datang di Manajemen Karyawan Bank =======")
         print("1. Login")
         print("2. Registrasi User Baru")
-        print("3. Keluar")
-        pilihan = input("Pilih opsi (1-3): ")
+        print("3. Lupa Password") 
+        print("4. Keluar")      
+        pilihan = input("Pilih opsi (1-4): ")
         
         if pilihan == '1':
             print("\n-- Silakan Login --")
             username = input("Username: ")
             password = input("Password: ")
-            # PERBAIKAN: Menggunakan nama fungsi yang benar
             if db.login_user(username, password):
-                # Sekarang Python sudah tahu apa itu menu_aplikasi_bank
                 menu_aplikasi_bank()
         
         elif pilihan == '2':
             print("\n-- Registrasi User Baru --")
             username = input("Masukkan username baru: ")
             password = input("Masukkan password baru: ")
-            # PERBAIKAN: Menggunakan nama fungsi yang benar
-            db.registrasi_user(username, password)
+            phone_number = input("Masukkan nomor telepon aktif Anda: ")
+            db.registrasi_user(username, password, phone_number) 
             
         elif pilihan == '3':
+            menu_lupa_password()
+            
+        elif pilihan == '4':
             print("Terima kasih! Program selesai.")
             break
             
