@@ -34,7 +34,6 @@ def menu_nasabah():
             print("Pilihan tidak valid.")
 
 def menu_rekening():
-    """Mengelola data rekening."""
     while True:
         print("\n--- Manajemen Rekening ---")
         print("1. Buka Rekening Baru")
@@ -87,7 +86,6 @@ def menu_rekening():
             print("Pilihan tidak valid.")
 
 def menu_transaksi():
-    """Mengelola data transaksi."""
     while True:
         print("\n--- Manajemen Transaksi ---")
         print("1. Buat Transaksi Baru (Debit/Kredit)")
@@ -115,7 +113,6 @@ def menu_transaksi():
             print("Pilihan tidak valid.")
 
 def menu_aplikasi_bank():
-    """Menampilkan menu utama aplikasi setelah login berhasil."""
     while True:
         print("\n======= MENU KARYAWAN BANK =======")
         print("1. Manajemen Nasabah")
@@ -137,7 +134,6 @@ def menu_aplikasi_bank():
             print("Pilihan tidak valid.")
 
 def menu_lupa_password():
-    """Menangani alur interaksi user untuk reset password."""
     print("\n-- Reset Password --")
     username = input("Masukkan username Anda: ")
     
@@ -147,7 +143,6 @@ def menu_lupa_password():
         db.verify_and_reset_password(username, otp_code, new_password)
 
 def main():
-    """Fungsi utama untuk menjalankan loop login."""
     while True:
         print("\n======= Selamat Datang di Manajemen Karyawan Bank =======")
         print("1. Login")

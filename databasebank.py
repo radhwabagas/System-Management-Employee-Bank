@@ -18,18 +18,15 @@ def _send_sms_notification(phone_number, otp_code):
 def request_password_reset(username):
     conn = get_db_connection()
     if not conn: return False
-
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT phone_number FROM user WHERE username = %s", (username,))
         result = cursor.fetchone()
-
         if not result or not result[0]:
             print(f"❌ Gagal: Username '{username}' tidak ditemukan atau tidak memiliki nomor telepon terdaftar.")
             return False
         
         phone_number = result[0]
-        
         otp_code = ''.join(random.choices(string.digits, k=6))
         expires_at = datetime.now() + timedelta(minutes=5)
         update_query = "UPDATE user SET reset_otp = %s, otp_expires_at = %s WHERE username = %s"
@@ -52,24 +49,17 @@ def request_password_reset(username):
             conn.close()
 
 def verify_and_reset_password(username, otp_code, new_password):
-    """
-    Memverifikasi OTP dan mengatur ulang password jika OTP valid.
-    """
     conn = get_db_connection()
     if not conn: return False
-    
     try:
         cursor = conn.cursor()
-        
         cursor.execute("SELECT reset_otp, otp_expires_at FROM user WHERE username = %s", (username,))
         result = cursor.fetchone()
-        
         if not result:
             print("❌ Gagal: Username tidak ditemukan.")
             return False
             
         stored_otp, expires_at = result
-    
         if stored_otp != otp_code:
             print("❌ Gagal: Kode OTP salah.")
             return False
@@ -80,11 +70,9 @@ def verify_and_reset_password(username, otp_code, new_password):
             
         password_bytes = new_password.encode('utf-8')
         password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
-        
         update_query = "UPDATE user SET password_hash = %s, reset_otp = NULL, otp_expires_at = NULL WHERE username = %s"
         cursor.execute(update_query, (password_hash.decode('utf-8'), username))
         conn.commit()
-        
         print(f"✅ Password untuk user '{username}' telah berhasil diperbarui!")
         return True
 
@@ -104,22 +92,18 @@ def get_db_connection():
     except Error as e:
         print(f"❌ Error saat menghubungkan ke MySQL: {e}")
         return None
-    
 
 def registrasi_user(username, password, phone_number): 
     """Mendaftarkan user baru dengan password yang di-hash dan nomor telepon."""
     conn = get_db_connection()
     if not conn: return False
-    
     try:
         password_bytes = password.encode('utf-8')
         salt = bcrypt.gensalt()
         password_hash = bcrypt.hashpw(password_bytes, salt)
         
         query = "INSERT INTO user (username, password_hash, phone_number) VALUES (%s, %s, %s)"
-        
         args = (username, password_hash.decode('utf-8'), phone_number)
-        
         cursor = conn.cursor()
         cursor.execute(query, args)
         conn.commit()
@@ -137,14 +121,12 @@ def registrasi_user(username, password, phone_number):
             conn.close()
 
 def login_user(username, password):
-    """Memverifikasi login user dengan password yang di-hash."""
     try:
         query = "SELECT password_hash FROM user WHERE username = %s"
         args = (username,)
         
         conn = get_db_connection()
         if not conn: return False
-
         cursor = conn.cursor()
         cursor.execute(query, args)
         result = cursor.fetchone()
@@ -152,7 +134,6 @@ def login_user(username, password):
         if result:
             password_hash_from_db = result[0].encode('utf-8')
             password_bytes = password.encode('utf-8')
-            
             if bcrypt.checkpw(password_bytes, password_hash_from_db):
                 print(f"✅ Login berhasil! Selamat datang, {username}.")
                 return True
@@ -168,7 +149,6 @@ def login_user(username, password):
             conn.close()
 
 def tambah_nasabah(nama, alamat, email, telepon):
-    """(CREATE) Menambahkan nasabah baru ke tabel nasabah."""
     query = "INSERT INTO nasabah (nama_lengkap, alamat, email, nomor_telepon) VALUES (%s, %s, %s, %s)"
     args = (nama, alamat, email, telepon)
     conn = get_db_connection()
@@ -185,7 +165,6 @@ def tambah_nasabah(nama, alamat, email, telepon):
             conn.close()
 
 def lihat_semua_nasabah():
-    """(READ) Membaca dan menampilkan semua data dari tabel nasabah."""
     query = "SELECT id, nama_lengkap, email, nomor_telepon FROM nasabah"
     conn = get_db_connection()
     if conn:
@@ -207,7 +186,6 @@ def lihat_semua_nasabah():
             conn.close()
 
 def update_email_nasabah(nasabah_id, email_baru):
-    "update email nasabah berdasarkan ID"
     query = "UPDATE nasabah SET email = %s WHERE id = %s"
     args = (email_baru, nasabah_id)
     conn = get_db_connection()
@@ -227,7 +205,6 @@ def update_email_nasabah(nasabah_id, email_baru):
             conn.close()
 
 def hapus_nasabah(nasabah_id):
-    """(DELETE) Menghapus nasabah berdasarkan ID."""
     query = "DELETE FROM nasabah WHERE id = %s"
     args = (nasabah_id,)
     conn = get_db_connection()
@@ -248,7 +225,6 @@ def hapus_nasabah(nasabah_id):
 
 
 def buka_rekening(nasabah_id, nomor_rekening, jenis_rekening):
-    """(CREATE) Membuat rekening baru untuk nasabah."""
     query = "INSERT INTO rekening (nasabah_id, nomor_rekening, jenis_rekening) VALUES (%s, %s, %s)"
     args = (nasabah_id, nomor_rekening, jenis_rekening)
     conn = get_db_connection()
@@ -265,7 +241,6 @@ def buka_rekening(nasabah_id, nomor_rekening, jenis_rekening):
             conn.close()
 
 def lihat_rekening_nasabah(nasabah_id):
-    """(READ) Menampilkan semua rekening milik seorang nasabah."""
     query = "SELECT id, nomor_rekening, jenis_rekening, saldo FROM rekening WHERE nasabah_id = %s"
     args = (nasabah_id,)
     conn = get_db_connection()
@@ -289,7 +264,6 @@ def lihat_rekening_nasabah(nasabah_id):
 
 
 def lihat_saldo(rekening_id):
-    """(READ) Melihat saldo spesifik dari satu rekening berdasarkan ID."""
     query = "SELECT saldo, nomor_rekening FROM rekening WHERE id = %s"
     args = (rekening_id,)
     conn = get_db_connection()
@@ -312,7 +286,6 @@ def lihat_saldo(rekening_id):
             conn.close()
 
 def tutup_rekening(rekening_id):
-    """(DELETE) Menghapus/menutup rekening berdasarkan ID."""
     query = "DELETE FROM rekening WHERE id = %s"
     args = (rekening_id,)
     conn = get_db_connection()
@@ -332,24 +305,20 @@ def tutup_rekening(rekening_id):
             conn.close()
 
 def buat_transaksi(rekening_id, tipe_transaksi, jumlah, deskripsi):
-    """(CREATE) Membuat catatan transaksi dan MENGUPDATE saldo rekening."""
     conn = get_db_connection()
     if not conn:
         return
-
+    
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT saldo FROM rekening WHERE id = %s FOR UPDATE", (rekening_id,))
         result = cursor.fetchone()
-        
         if result is None:
             print(f"❌ Rekening dengan ID {rekening_id} tidak ditemukan.")
             return
 
         saldo_sekarang = result[0]
-        
         jumlah_decimal = Decimal(str(jumlah))
-
         if tipe_transaksi.upper() == 'KREDIT':
             saldo_baru = saldo_sekarang + jumlah_decimal
         elif tipe_transaksi.upper() == 'DEBIT':
@@ -363,7 +332,6 @@ def buat_transaksi(rekening_id, tipe_transaksi, jumlah, deskripsi):
 
         update_rekening_query = "UPDATE rekening SET saldo = %s WHERE id = %s"
         cursor.execute(update_rekening_query, (saldo_baru, rekening_id))
-
         insert_transaksi_query = "INSERT INTO transaksi (rekening_id, tipe_transaksi, jumlah, deskripsi) VALUES (%s, %s, %s, %s)"
         cursor.execute(insert_transaksi_query, (rekening_id, tipe_transaksi.upper(), jumlah_decimal, deskripsi))
 
@@ -379,7 +347,6 @@ def buat_transaksi(rekening_id, tipe_transaksi, jumlah, deskripsi):
 
 
 def lihat_riwayat_transaksi(rekening_id):
-    """(READ) Menampilkan riwayat transaksi dari sebuah rekening."""
     query = "SELECT tipe_transaksi, jumlah, deskripsi, waktu_transaksi FROM transaksi WHERE rekening_id = %s ORDER BY waktu_transaksi DESC"
     args = (rekening_id,)
     conn = get_db_connection()
